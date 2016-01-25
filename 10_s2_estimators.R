@@ -8,9 +8,16 @@ require(doMC)
 require(data.table)
 require(sampling)
 
+require(xlsx)
+
+# require(openxlsx)
+# Sys.setenv(R_ZIPCMD = "zip")
+# Sys.getenv("R_ZIPCMD")
+
 
 # Multi core ####
-registerDoMC(cores = 4)
+
+registerDoMC(cores = 8)
 options(stringsAsFactors = F)
 
 
@@ -18,6 +25,11 @@ options(stringsAsFactors = F)
 rm(list = ls())
 gc()
 
+
+
+# Folders ####
+
+dir.root <- "/home/math/T/SMKD/MND/R/s2/Results"
 
 
 # S^2 estimation
@@ -63,7 +75,7 @@ s2_lap_UPS <- function(y, w = rep(1, length(y)), pikl) {
 
 # Data sim ####
 
-N <- 100
+N <- 1000
 
 # set.seed(234)
 
@@ -85,7 +97,7 @@ S2
 
 
 # Izlases apjoms
-n <- 10
+n <- 100
 
 # Izasē iekļūšanas varbūtības
 pop[, pik_SRS := n / N]
@@ -105,7 +117,7 @@ ggplot(pop, aes(pik_UPS, y_chisq)) + geom_point() + theme_bw()
 
 # Simulācija ####
 
-K <- 1e5
+K <- 80
 
 res <- foreach(i = 1:K,
                .combine = function(x, y) rbindlist(list(x, y))) %dopar% {
@@ -117,10 +129,6 @@ res <- foreach(i = 1:K,
   sampl_UPS <- s[s > 0]
 
   pikl_sam <- pikl[sampl_UPS, sampl_UPS]
-
-  res_SRS_sam <- pop[sampl_SRS, lapply(.SD[, ynames, with = F], s2)]
-  res_SRS_sam[, sample := "SRS"]
-  res_SRS_sam[, s2_est := "sam"]
 
   res_SRS_wgh <- pop[sampl_SRS, lapply(.SD[, ynames, with = F], s2,
                                        w = 1 / pik_SRS)]
@@ -137,10 +145,6 @@ res <- foreach(i = 1:K,
   res_SRS_lap[, sample := "SRS"]
   res_SRS_lap[, s2_est := "lap"]
 
-  res_UPS_sam <- pop[sampl_UPS, lapply(.SD[, ynames, with = F], s2)]
-  res_UPS_sam[, sample := "UPS"]
-  res_UPS_sam[, s2_est := "sam"]
-
   res_UPS_wgh <- pop[sampl_UPS, lapply(.SD[, ynames, with = F], s2,
                                        w = 1 / pik_UPS)]
   res_UPS_wgh[, sample := "UPS"]
@@ -156,8 +160,8 @@ res <- foreach(i = 1:K,
   res_UPS_lap[, sample := "UPS"]
   res_UPS_lap[, s2_est := "lap"]
 
-  res <- rbindlist(list(res_SRS_sam, res_SRS_wgh, res_SRS_alt, res_SRS_lap,
-                        res_UPS_sam, res_UPS_wgh, res_UPS_alt, res_UPS_lap))
+  res <- rbindlist(list(res_SRS_wgh, res_SRS_alt, res_SRS_lap,
+                        res_UPS_wgh, res_UPS_alt, res_UPS_lap))
   res[, id := i]
   return(res)
 }
@@ -200,6 +204,13 @@ tab
 # MSE
 tab[, MSE := bias ^ 2 + sd ^ 2]
 
+
+# N un n
+tab[, N := N]
+tab[, n := n]
+tab[, K := K]
+
+
 # args(data.table:::print.data.table)
 # args(print.data.frame)
 
@@ -227,3 +238,38 @@ tmp <- tab[, .N, keyby = list(sample, variable)]
 grafiki <- mapply(gg, tmp$sample, tmp$variable, SIMPLIFY = F)
 
 grafiki
+
+
+
+# Save ####
+
+fname <- gsub("-|:| ", "_", Sys.time())
+fname
+
+fname.tab <- file.path(dir.root, paste0("tabl_", fname, ".csv"))
+fname.xls <- file.path(dir.root, paste0("tabl_", fname, ".xlsx"))
+fname.ggp <- file.path(dir.root, paste0("plot_", fname, ".pdf"))
+
+write.table(tab, file = fname.tab,
+            quote = T, sep = ";", row.names = F, qmethod = "double")
+
+# write.xlsx(tab, file = fname.xls, row.names = F)
+
+names(tab)
+
+wb <- createWorkbook()
+sh <- createSheet(wb, sheetName = "tab")
+csh <- CellStyle(wb) + Font(wb, isBold = TRUE) + Alignment(h = "ALIGN_CENTER")
+addDataFrame(tab, sh, row.names = F, colnamesStyle = csh)
+saveWorkbook(wb, file = fname.xls)
+
+
+# wb <- loadWorkbook(fname.xls)
+# sheets <- getSheets(wb)
+# autoSizeColumn(sheets[[1]], colIndex = 1:ncol(tab))
+# saveWorkbook(wb, "Final.xlsx")
+
+
+cairo_pdf(fname.ggp, width = 16, height = 9, onefile = T)
+grafiki
+dev.off()
