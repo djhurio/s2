@@ -7,7 +7,7 @@ require(vardpoor)
 
 # Definition of S^2 estimators ####
 
-# s2a -- sample variance
+# s2a -- sample variance -- equal to var()
 
 s2a <- function(y) {
   n <- length(y)
@@ -30,7 +30,7 @@ s2b <- function(y, w = rep(1, length(y))) {
 s2c <- function(y, w = rep(1, length(y))) {
   n <- length(y)
   N <- sum(w)
-  s2 <- n / (n - 1) * (sum(y ^ 2 * w) - sum(y * w) ^ 2 / N) / N
+  s2 <- (sum(y ^ 2 * w) - sum(y * w) ^ 2 / N) / N * n / (n - 1)
   return(s2)
 }
 
@@ -38,7 +38,7 @@ s2c <- function(y, w = rep(1, length(y))) {
 # s2d
 
 s2d <- function(y, w = rep(1, length(y)),
-                H = rep(1, length(y)), PSU = seq(1, length(y))) {
+                H = rep(1, length(y)), PSU = seq_along(y)) {
   N <- sum(w)
   n <- length(y)
   VarY <- vardom(Y = y, H = H, PSU = PSU, w_final = w)$all_result$var
